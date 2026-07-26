@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚙️ Admin Panel - Pakistan Earn</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial;background:#f0f2f5}
+.screen{display:none;min-height:100vh;padding-bottom:80px}
+.screen.active{display:block}
+.header{background:linear-gradient(135deg,#1a237e 0%,#283593 100%);color:white;padding:20px;text-align:center}
+.header h2{font-size:20px}
+.login-box{max-width:350px;margin:50px auto;background:white;padding:30px;border-radius:15px;box-shadow:0 4px 15px rgba(0,0,0,0.1)}
+.login-box input{width:100%;padding:14px;margin:10px 0;border:2px solid #e0e0e0;border-radius:10px;font-size:16px}
+.btn{background:linear-gradient(135deg,#1a237e 0%,#283593 100%);color:white;border:none;padding:15px;border-radius:12px;font-size:16px;cursor:pointer;width:100%;margin:8px 0;font-weight:600}
+.btn-green{background:linear-gradient(135deg,#1b5e20 0%,#2e7d32 100%)}
+.btn-red{background:linear-gradient(135deg,#b71c1c 0%,#c62828 100%)}
+.btn-orange{background:linear-gradient(135deg,#e65100 0%,#f57c00 100%)}
+.btn-small{padding:8px 15px;font-size:13px;width:auto;margin:2px}
+.card{background:white;margin:12px;padding:20px;border-radius:15px;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:12px}
+.stat-card{background:white;padding:20px;border-radius:15px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+.stat-card .num{font-size:28px;font-weight:bold;color:#1a237e}
+.stat-card small{color:#666;font-size:12px}
+.request-item{background:#f5f5f5;padding:15px;border-radius:10px;margin:10px 0;border-left:4px solid #e65100}
+.request-item.approved{border-left-color:#2e7d32;background:#e8f5e9}
+.request-item.rejected{border-left-color:#c62828;background:#ffebee}
+.user-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #eee}
+.badge{display:inline-block;padding:4px 12px;border-radius:15px;font-size:11px;font-weight:600}
+.badge-pending{background:#fff3e0;color:#e65100}
+.badge-approved{background:#e8f5e9;color:#1b5e20}
+.badge-rejected{background:#ffebee;color:#c62828}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:white;display:flex;justify-content:space-around;padding:8px 0;box-shadow:0 -2px 10px rgba(0,0,0,0.1);z-index:1000}
+.nav-item{text-align:center;cursor:pointer;padding:5px 15px;color:#666}
+.nav-item.active{color:#1a237e}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1a237e;color:white;padding:12px 25px;border-radius:25px;display:none;z-index:9999}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="screen active" id="loginScreen">
+<div class="header"><h2>⚙️ Admin Control Panel</h2></div>
+<div class="login-box">
+<input type="password" placeholder="Admin Password" id="adminPass">
+<button class="btn" id="loginBtn">🔐 LOGIN</button>
+</div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="screen" id="dashboardScreen">
+<div class="header"><h2>📊 System Realtime Dashboard</h2></div>
+<div class="stats-grid">
+<div class="stat-card"><div class="num" id="totalUsers">0</div><small>Total Users</small></div>
+<div class="stat-card"><div class="num" id="pendingPlans">0</div><small>Pending Plans</small></div>
+<div class="stat-card"><div class="num" id="pendingWithdraws">0</div><small>Pending Withdraws</small></div>
+</div>
+</div>
+
+<!-- PLAN REQUESTS -->
+<div class="screen" id="plansScreen">
+<div class="header"><h2>📋 Realtime Plan Requests</h2></div>
+<div class="card" id="planRequestsList">Loading Data...</div>
+</div>
+
+<!-- WITHDRAW REQUESTS -->
+<div class="screen" id="withdrawsScreen">
+<div class="header"><h2>💸 Realtime Withdraw Requests</h2></div>
+<div class="card" id="withdrawRequestsList">Loading Data...</div>
+</div>
+
+<!-- USERS MANAGEMENT -->
+<div class="screen" id="usersScreen">
+<div class="header"><h2>👥 Registered Users Database</h2></div>
+<div class="card" id="usersList">Loading Users...</div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav" id="adminNav" style="display:none">
+<div class="nav-item active" id="navDash"><span>📊</span><br><small>Dashboard</small></div>
+<div class="nav-item" id="navPlans"><span>📋</span><br><small>Plans</small></div>
+<div class="nav-item" id="navWithdraws"><span>💸</span><br><small>Withdraws</small></div>
+<div class="nav-item" id="navUsers"><span>👥</span><br><small>Users</small></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ADMIN ENGINE -->
+<script type="module">
+import { db, collection, doc, updateDoc, onSnapshot, getDoc } from "./firebase-config.js";
+
+function showToast(m) {
+    let t = document.getElementById('toast');
+    t.innerText = m; t.style.display = 'block';
+    setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+document.getElementById('loginBtn').addEventListener('click', () => {
+    let pass = document.getElementById('adminPass').value;
+    if(pass === 'admin123') {
+        showScreen('dashboardScreen');
+        document.getElementById('adminNav').style.display = 'flex';
+        initAdminRealtime();
+    } else {
+        showToast('❌ Access Denied!');
+    }
+});
+
+function initAdminRealtime() {
+    // Sync Users
+    onSnapshot(collection(db, "users"), (snap) => {
+        document.getElementById('totalUsers').textContent = snap.size;
+        let html = '';
+        snap.forEach(docSnap => {
+            let u = docSnap.data();
+            html += `<div class="user-row">
+                <div>
+                    <strong>${u.name}</strong> (${u.mobile})
+                    <p style="font-size:11px;color:#666">Balance: Rs ${u.balance}</p>
+                </div>
+                <div>
+                    <button class="btn ${u.banned ? 'btn-green' : 'btn-red'} btn-small" onclick="toggleBan('${u.id}', ${u.banned})">
+                        ${u.banned ? 'Unban' : 'Ban'}
+                    </button>
+                </div>
+            </div>`;
+        });
+        document.getElementById('usersList').innerHTML = html || 'No Users';
+    });
+
+    // Sync Plans
+    onSnapshot(collection(db, "planRequests"), (snap) => {
+        let pendingCount = 0;
+        let html = '';
+        snap.forEach(docSnap => {
+            let p = docSnap.data();
+            if(p.status === 'pending') pendingCount++;
+            html += `<div class="request-item ${p.status}">
+                <strong>${p.userName} (${p.userMobile})</strong>
+                <p>TID: ${p.tid} | Amount: Rs ${p.amount}</p>
+                ${p.status === 'pending' ? `
+                    <button class="btn btn-green btn-small" onclick="approvePlan('${p.id}', '${p.userId}')">Approve</button>
+                    <button class="btn btn-red btn-small" onclick="rejectPlan('${p.id}', '${p.userId}')">Reject</button>
+                ` : <span class="badge badge-${p.status}">${p.status.toUpperCase()}</span>}
+            </div>`;
+        });
+        document.getElementById('pendingPlans').textContent = pendingCount;
+        document.getElementById('planRequestsList').innerHTML = html || 'No Plan Requests';
+    });
+
+    // Sync Withdraws
+    onSnapshot(collection(db, "withdrawRequests"), (snap) => {
+        let pendingCount = 0;
+        let html = '';
+        snap.forEach(docSnap => {
+            let w = docSnap.data();
+            if(w.status === 'pending') pendingCount++;
+            html += `<div class="request-item ${w.status}">
+                <strong>${w.userName} (${w.withdrawAccount})</strong>
+                <p>Method: ${w.method} | Amount: Rs ${w.amount}</p>
+                ${w.status === 'pending' ? `
+                    <button class="btn btn-green btn-small" onclick="approveWithdraw('${w.id}', '${w.userId}', ${w.amount})">Pay</button>
+                    <button class="btn btn-red btn-small" onclick="rejectWithdraw('${w.id}')">Reject</button>
+                ` : <span class="badge badge-${w.status}">${w.status.toUpperCase()}</span>}
+            </div>`;
+        });
+        document.getElementById('pendingWithdraws').textContent = pendingCount;
+        document.getElementById('withdrawRequestsList').innerHTML = html || 'No Withdraw Requests';
+    });
+}
+
+// Global Actions for Dynamic DOM
+window.approvePlan = async (reqId, userId) => {
+    await updateDoc(doc(db, "planRequests", reqId), { status: 'approved' });
+    
+    // Check referral logic
+    const uSnap = await getDoc(doc(db, "users", userId));
+    if(uSnap.exists()){
+        let userData = uSnap.data();
+        await updateDoc(doc(db, "users", userId), { planActive: true, planPending: false });
+        
+        if(userData.refBy){
+            const refSnap = await getDoc(doc(db, "users", userData.refBy));
+            if(refSnap.exists()){
+                let refUser = refSnap.data();
+                let updatedBalance = (refUser.balance || 0) + 300;
+                let updatedEarned = (refUser.totalEarned || 0) + 300;
+                let invites = refUser.invites || [];
+                invites.push({ userId: userId, name: userData.name, paid: true });
+                await updateDoc(doc(db, "users", userData.refBy), {
+                    balance: updatedBalance,
+                    totalEarned: updatedEarned,
+                    invites: invites
+                });
+            }
+        }
+    }
+    showToast('✅ Plan Approved!');
+};
+
+window.rejectPlan = async (reqId, userId) => {
+    await updateDoc(doc(db, "planRequests", reqId), { status: 'rejected' });
+    await updateDoc(doc(db, "users", userId), { planPending: false });
+    showToast('❌ Plan Rejected!');
+};
+
+window.approveWithdraw = async (wId, userId, amount) => {
+    const uSnap = await getDoc(doc(db, "users", userId));
+    if(uSnap.exists()){
+        let userData = uSnap.data();
+        let newBalance = userData.balance - amount;
+        let newWithdrawn = (userData.totalWithdrawn || 0) + amount;
+        await updateDoc(doc(db, "users", userId), { balance: newBalance, totalWithdrawn: newWithdrawn });
+        await updateDoc(doc(db, "withdrawRequests", wId), { status: 'approved' });
+        showToast('✅ Payment Approved!');
+    }
+};
+
+window.rejectWithdraw = async (wId) => {
+    await updateDoc(doc(db, "withdrawRequests", wId), { status: 'rejected' });
+    showToast('❌ Withdraw Rejected!');
+};
+
+window.toggleBan = async (userId, currentStatus) => {
+    await updateDoc(doc(db, "users", userId), { banned: !currentStatus });
+    showToast('✅ User Status Updated!');
+};
+
+document.getElementById('navDash').addEventListener('click', () => showScreen('dashboardScreen'));
+document.getElementById('navPlans').addEventListener('click', () => showScreen('plansScreen'));
+document.getElementById('navWithdraws').addEventListener('click', () => showScreen('withdrawsScreen'));
+document.getElementById('navUsers').addEventListener('click', () => showScreen('usersScreen'));
+</script>
+</body>
+</html>
