@@ -6,7 +6,7 @@
 <title>⚙️ Admin Panel - Pakistan Earn</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial;background:#f0f2f5}
+body{font-family:Arial;background:#f0f2f5;user-select:none}
 .screen{display:none;min-height:100vh;padding-bottom:80px}
 .screen.active{display:block}
 .header{background:linear-gradient(135deg,#1a237e 0%,#283593 100%);color:white;padding:20px;text-align:center}
@@ -43,8 +43,8 @@ body{font-family:Arial;background:#f0f2f5}
 <div class="screen active" id="loginScreen">
 <div class="header"><h2>⚙️ Admin Control Panel</h2></div>
 <div class="login-box">
-<input type="password" placeholder="Admin Password" id="adminPass">
-<button class="btn" id="loginBtn">🔐 LOGIN</button>
+<input type="password" placeholder="Admin Key" id="adminPass">
+<button class="btn" id="loginBtn">🔐 UNLOCK PANEL</button>
 </div>
 </div>
 
@@ -86,9 +86,24 @@ body{font-family:Arial;background:#f0f2f5}
 
 <div class="toast" id="toast"></div>
 
-<!-- ADMIN ENGINE -->
 <script type="module">
 import { db, collection, doc, updateDoc, onSnapshot, getDoc } from "./firebase-config.js";
+
+// Cryptographic Password Lock Guard
+const ADMIN_HASH = "e2c26224d407fbb73d3ca7a9b0c96c4d444edbbec5a93aa4cbdf0e3952504b2c";
+
+async function sha256(str) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Anti-Inspect Lock Protection
+document.addEventListener("contextmenu", e => e.preventDefault());
+document.addEventListener("keydown", e => {
+    if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || (e.ctrlKey && e.keyCode === 85)) {
+        e.preventDefault();
+    }
+});
 
 function showToast(m) {
     let t = document.getElementById('toast');
@@ -101,9 +116,10 @@ function showScreen(id) {
     document.getElementById(id).classList.add('active');
 }
 
-document.getElementById('loginBtn').addEventListener('click', () => {
+document.getElementById('loginBtn').addEventListener('click', async () => {
     let pass = document.getElementById('adminPass').value;
-    if(pass === 'admin123') {
+    let inputHash = await sha256(pass);
+    if(inputHash === ADMIN_HASH) {
         showScreen('dashboardScreen');
         document.getElementById('adminNav').style.display = 'flex';
         initAdminRealtime();
@@ -113,7 +129,6 @@ document.getElementById('loginBtn').addEventListener('click', () => {
 });
 
 function initAdminRealtime() {
-    // Sync Users
     onSnapshot(collection(db, "users"), (snap) => {
         document.getElementById('totalUsers').textContent = snap.size;
         let html = '';
@@ -122,7 +137,7 @@ function initAdminRealtime() {
             html += `<div class="user-row">
                 <div>
                     <strong>${u.name}</strong> (${u.mobile})
-                    <p style="font-size:11px;color:#666">Balance: Rs ${u.balance}</p>
+                    <p style="font-size:11px;color:#666">Balance: Rs ${u.balance} | RefBy: ${u.refBy || 'None'}</p>
                 </div>
                 <div>
                     <button class="btn ${u.banned ? 'btn-green' : 'btn-red'} btn-small" onclick="toggleBan('${u.id}', ${u.banned})">
@@ -134,7 +149,6 @@ function initAdminRealtime() {
         document.getElementById('usersList').innerHTML = html || 'No Users';
     });
 
-    // Sync Plans
     onSnapshot(collection(db, "planRequests"), (snap) => {
         let pendingCount = 0;
         let html = '';
@@ -154,7 +168,6 @@ function initAdminRealtime() {
         document.getElementById('planRequestsList').innerHTML = html || 'No Plan Requests';
     });
 
-    // Sync Withdraws
     onSnapshot(collection(db, "withdrawRequests"), (snap) => {
         let pendingCount = 0;
         let html = '';
@@ -175,11 +188,8 @@ function initAdminRealtime() {
     });
 }
 
-// Global Actions for Dynamic DOM
 window.approvePlan = async (reqId, userId) => {
     await updateDoc(doc(db, "planRequests", reqId), { status: 'approved' });
-    
-    // Check referral logic
     const uSnap = await getDoc(doc(db, "users", userId));
     if(uSnap.exists()){
         let userData = uSnap.data();
