@@ -83,7 +83,6 @@ body{font-family:Arial;background:#f0f2f5;user-select:none}
 <script type="module">
 import { db, ref, set, get, update, onValue } from "./firebase-config.js";
 
-// 🔑 APNA PASSWORD YAHAN BADLEIN (ADMIN PASSWORD SET HERE)
 const ADMIN_PASSWORD = "admin123";
 
 function showToast(m) {
@@ -115,6 +114,7 @@ document.getElementById('loginBtn').addEventListener('click', () => {
 });
 
 function initAdminRealtime() {
+    // 1. Users Data 
     onValue(ref(db, "users"), (snap) => {
         let count = 0;
         let html = '';
@@ -122,14 +122,15 @@ function initAdminRealtime() {
             snap.forEach(docSnap => {
                 count++;
                 let u = docSnap.val();
+                let userId = docSnap.key; 
                 let isBanned = u.banned ? true : false;
                 html += `<div class="user-row">
                     <div>
-                        <strong>${u.name || 'User'}</strong> (${u.mobile})
+                        <strong>${u.name || 'User'}</strong> (${u.mobile || userId})
                         <p style="font-size:11px;color:#666">Balance: Rs ${u.balance || 0} | RefBy: ${u.refBy || 'None'}</p>
                     </div>
                     <div>
-                        <button class="btn ${isBanned ? 'btn-green' : 'btn-red'} btn-small" onclick="window.toggleBan('${u.mobile}', ${isBanned})">
+                        <button class="btn ${isBanned ? 'btn-green' : 'btn-red'} btn-small" onclick="window.toggleBan('${userId}', ${isBanned})">
                             ${isBanned ? 'Unban' : 'Ban'}
                         </button>
                     </div>
@@ -138,6 +139,9 @@ function initAdminRealtime() {
         }
         document.getElementById('totalUsers').textContent = count;
         document.getElementById('usersList').innerHTML = html || 'No Users Found';
+    }, (error) => {
+        showToast('❌ Users Data Fetch Error!');
+        console.error(error);
     });
 
     onValue(ref(db, "planRequests"), (snap) => {
@@ -146,19 +150,22 @@ function initAdminRealtime() {
         if(snap.exists()){
             snap.forEach(docSnap => {
                 let p = docSnap.val();
+                let reqId = docSnap.key; // Using real Firebase Key
                 if(p.status === 'pending') pendingCount++;
-                html += `<div class="request-item ${p.status}">
-                    <strong>${p.userName || 'User'} (${p.userMobile})</strong>
-                    <p>TID: ${p.tid} | Amount: Rs ${p.amount}</p>
+                html += `<div class="request-item ${p.status || 'pending'}">
+                    <strong>${p.userName || 'User'} (${p.userMobile || 'N/A'})</strong>
+                    <p>TID: ${p.tid || 'N/A'} | Amount: Rs ${p.amount || 0}</p>
                     ${p.status === 'pending' ? `
-                        <button class="btn btn-green btn-small" onclick="window.approvePlan('${p.id}', '${p.userId}')">Approve</button>
-                        <button class="btn btn-red btn-small" onclick="window.rejectPlan('${p.id}', '${p.userId}')">Reject</button>
-                    ` : <span class="badge badge-${p.status}">${p.status.toUpperCase()}</span>}
+                        <button class="btn btn-green btn-small" onclick="window.approvePlan('${reqId}', '${p.userId || ''}')">Approve</button>
+                        <button class="btn btn-red btn-small" onclick="window.rejectPlan('${reqId}', '${p.userId || ''}')">Reject</button>
+                    ` : <span class="badge badge-${p.status}">${(p.status || '').toUpperCase()}</span>}
                 </div>`;
             });
         }
         document.getElementById('pendingPlans').textContent = pendingCount;
         document.getElementById('planRequestsList').innerHTML = html || 'No Plan Requests';
+    }, (error) => {
+        console.error(error);
     });
 
     onValue(ref(db, "withdrawRequests"), (snap) => {
@@ -167,74 +174,102 @@ function initAdminRealtime() {
         if(snap.exists()){
             snap.forEach(docSnap => {
                 let w = docSnap.val();
+                let wId = docSnap.key; // Using real Firebase Key
                 if(w.status === 'pending') pendingCount++;
-                html += `<div class="request-item ${w.status}">
-                    <strong>${w.userName || 'User'} (${w.withdrawAccount})</strong>
-                    <p>Method: ${w.method} | Amount: Rs ${w.amount}</p>
+                html += `<div class="request-item ${w.status || 'pending'}">
+                    <strong>${w.userName || 'User'} (${w.withdrawAccount || 'N/A'})</strong>
+                    <p>Method: ${w.method || 'N/A'} | Amount: Rs ${w.amount || 0}</p>
                     ${w.status === 'pending' ? `
-                        <button class="btn btn-green btn-small" onclick="window.approveWithdraw('${w.id}', '${w.userId}', ${w.amount})">Pay</button>
-                        <button class="btn btn-red btn-small" onclick="window.rejectWithdraw('${w.id}')">Reject</button>
-                    ` : <span class="badge badge-${w.status}">${w.status.toUpperCase()}</span>}
+                        <button class="btn btn-green btn-small" onclick="window.approveWithdraw('${wId}', '${w.userId || ''}', ${w.amount || 0})">Pay</button>
+                        <button class="btn btn-red btn-small" onclick="window.rejectWithdraw('${wId}')">Reject</button>
+                    ` : <span class="badge badge-${w.status}">${(w.status || '').toUpperCase()}</span>}
                 </div>`;
             });
         }
         document.getElementById('pendingWithdraws').textContent = pendingCount;
         document.getElementById('withdrawRequestsList').innerHTML = html || 'No Withdraw Requests';
+    }, (error) => {
+        console.error(error);
     });
 }
 
+// functions attached 
 window.toggleBan = async (userId, currentStatus) => {
-    await update(ref(db, "users/" + userId), { banned: !currentStatus });
-    showToast('✅ User Status Updated!');
+    try {
+        await update(ref(db, "users/" + userId), { banned: !currentStatus });
+        showToast('✅ User Status Updated!');
+    } catch(e) {
+        showToast('❌ Update Failed');
+    }
 };
 
 window.approvePlan = async (reqId, userId) => {
-    await update(ref(db, "planRequests/" + reqId), { status: 'approved' });
-    const uSnap = await get(ref(db, "users/" + userId));
-    if(uSnap.exists()){
-        let userData = uSnap.val();
-        await update(ref(db, "users/" + userId), { planActive: true, planPending: false });
-        
-        if(userData.refBy){
-            const refSnap = await get(ref(db, "users/" + userData.refBy));
-            if(refSnap.exists()){
-                let refUser = refSnap.val();
-                let updatedBalance = (refUser.balance || 0) + 300;
-                let updatedEarned = (refUser.totalEarned || 0) + 300;
-                let invites = refUser.invites || {};
-                invites[userId] = { userId: userId, name: userData.name, paid: true };
-                await update(ref(db, "users/" + userData.refBy), {
-                    balance: updatedBalance,
-                    totalEarned: updatedEarned,
-                    invites: invites
-                });
+    try {
+        await update(ref(db, "planRequests/" + reqId), { status: 'approved' });
+        if(userId) {
+            const uSnap = await get(ref(db, "users/" + userId));
+            if(uSnap.exists()){
+                let userData = uSnap.val();
+                await update(ref(db, "users/" + userId), { planActive: true, planPending: false });
+                
+                if(userData.refBy){
+                    const refSnap = await get(ref(db, "users/" + userData.refBy));
+                    if(refSnap.exists()){
+                        let refUser = refSnap.val();
+                        let updatedBalance = (refUser.balance || 0) + 300;
+                        let updatedEarned = (refUser.totalEarned || 0) + 300;
+                        let invites = refUser.invites || {};
+                        invites[userId] = { userId: userId, name: userData.name || 'User', paid: true };
+                        await update(ref(db, "users/" + userData.refBy), {
+                            balance: updatedBalance,
+                            totalEarned: updatedEarned,
+                            invites: invites
+                        });
+                    }
+                }
             }
         }
+        showToast('✅ Plan Approved!');
+    } catch(e) {
+        showToast('❌ Action Failed!');
     }
-    showToast('✅ Plan Approved!');
 };
 
 window.rejectPlan = async (reqId, userId) => {
-    await update(ref(db, "planRequests/" + reqId), { status: 'rejected' });
-    await update(ref(db, "users/" + userId), { planPending: false });
-    showToast('❌ Plan Rejected!');
+    try {
+        await update(ref(db, "planRequests/" + reqId), { status: 'rejected' });
+        if(userId) await update(ref(db, "users/" + userId), { planPending: false });
+        showToast('❌ Plan Rejected!');
+    } catch(e) {
+        showToast('❌ Action Failed!');
+    }
 };
 
 window.approveWithdraw = async (wId, userId, amount) => {
-    const uSnap = await get(ref(db, "users/" + userId));
-    if(uSnap.exists()){
-        let userData = uSnap.val();
-        let newBalance = (userData.balance || 0) - amount;
-        let newWithdrawn = (userData.totalWithdrawn || 0) + amount;
-        await update(ref(db, "users/" + userId), { balance: newBalance, totalWithdrawn: newWithdrawn });
+    try {
+        if(userId) {
+            const uSnap = await get(ref(db, "users/" + userId));
+            if(uSnap.exists()){
+                let userData = uSnap.val();
+                let newBalance = (userData.balance || 0) - amount;
+                let newWithdrawn = (userData.totalWithdrawn || 0) + amount;
+                await update(ref(db, "users/" + userId), { balance: newBalance, totalWithdrawn: newWithdrawn });
+            }
+        }
         await update(ref(db, "withdrawRequests/" + wId), { status: 'approved' });
         showToast('✅ Payment Approved!');
+    } catch(e) {
+        showToast('❌ Action Failed!');
     }
 };
 
 window.rejectWithdraw = async (wId) => {
-    await update(ref(db, "withdrawRequests/" + wId), { status: 'rejected' });
-    showToast('❌ Withdraw Rejected!');
+    try {
+        await update(ref(db, "withdrawRequests/" + wId), { status: 'rejected' });
+        showToast('❌ Withdraw Rejected!');
+    } catch(e) {
+        showToast('❌ Action Failed!');
+    }
 };
 
 document.getElementById('navDash').addEventListener('click', () => { showScreen('dashboardScreen'); setNavActive('navDash'); });
