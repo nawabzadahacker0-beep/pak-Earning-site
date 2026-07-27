@@ -6,7 +6,7 @@
 <title>⚙️ Admin Panel - Pakistan Earn</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial;background:#f0f2f5;user-select:none}
+body{font-family:Arial, sans-serif;background:#f0f2f5;user-select:none}
 .screen{display:none;min-height:100vh;padding-bottom:80px}
 .screen.active{display:block}
 .header{background:linear-gradient(135deg,#1a237e 0%,#283593 100%);color:white;padding:20px;text-align:center}
@@ -81,7 +81,23 @@ body{font-family:Arial;background:#f0f2f5;user-select:none}
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { db, ref, set, get, update, onValue } from "./firebase-config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+// Firebase App Config
+const firebaseConfig = {
+    apiKey: "AIzaSyB25VaErJEsI3VLBeb52cpczKRmEWC4fEs",
+    authDomain: "pak-earning-site.firebaseapp.com",
+    databaseURL: "https://pak-earning-site-default-rtdb.firebaseio.com", // Fixed Missing URL
+    projectId: "pak-earning-site",
+    storageBucket: "pak-earning-site.firebasestorage.app",
+    messagingSenderId: "830671389706",
+    appId: "1:830671389706:web:d27d9596334751fa70cbf3",
+    measurementId: "G-VNZESL5C5Q"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 const ADMIN_PASSWORD = "admin123";
 
@@ -114,7 +130,7 @@ document.getElementById('loginBtn').addEventListener('click', () => {
 });
 
 function initAdminRealtime() {
-    // 1. Users Data 
+    // 1. Fetch Users Data
     onValue(ref(db, "users"), (snap) => {
         let count = 0;
         let html = '';
@@ -140,17 +156,17 @@ function initAdminRealtime() {
         document.getElementById('totalUsers').textContent = count;
         document.getElementById('usersList').innerHTML = html || 'No Users Found';
     }, (error) => {
-        showToast('❌ Users Data Fetch Error!');
-        console.error(error);
+        console.error("Users Error:", error);
     });
 
+    // 2. Fetch Plan Requests
     onValue(ref(db, "planRequests"), (snap) => {
         let pendingCount = 0;
         let html = '';
         if(snap.exists()){
             snap.forEach(docSnap => {
                 let p = docSnap.val();
-                let reqId = docSnap.key; // Using real Firebase Key
+                let reqId = docSnap.key;
                 if(p.status === 'pending') pendingCount++;
                 html += `<div class="request-item ${p.status || 'pending'}">
                     <strong>${p.userName || 'User'} (${p.userMobile || 'N/A'})</strong>
@@ -165,16 +181,17 @@ function initAdminRealtime() {
         document.getElementById('pendingPlans').textContent = pendingCount;
         document.getElementById('planRequestsList').innerHTML = html || 'No Plan Requests';
     }, (error) => {
-        console.error(error);
+        console.error("Plan Error:", error);
     });
 
+    // 3. Fetch Withdraw Requests
     onValue(ref(db, "withdrawRequests"), (snap) => {
         let pendingCount = 0;
         let html = '';
         if(snap.exists()){
             snap.forEach(docSnap => {
                 let w = docSnap.val();
-                let wId = docSnap.key; // Using real Firebase Key
+                let wId = docSnap.key;
                 if(w.status === 'pending') pendingCount++;
                 html += `<div class="request-item ${w.status || 'pending'}">
                     <strong>${w.userName || 'User'} (${w.withdrawAccount || 'N/A'})</strong>
@@ -189,11 +206,11 @@ function initAdminRealtime() {
         document.getElementById('pendingWithdraws').textContent = pendingCount;
         document.getElementById('withdrawRequestsList').innerHTML = html || 'No Withdraw Requests';
     }, (error) => {
-        console.error(error);
+        console.error("Withdraw Error:", error);
     });
 }
 
-// functions attached 
+// Global functions attached to window
 window.toggleBan = async (userId, currentStatus) => {
     try {
         await update(ref(db, "users/" + userId), { banned: !currentStatus });
@@ -272,6 +289,7 @@ window.rejectWithdraw = async (wId) => {
     }
 };
 
+// Navigation
 document.getElementById('navDash').addEventListener('click', () => { showScreen('dashboardScreen'); setNavActive('navDash'); });
 document.getElementById('navPlans').addEventListener('click', () => { showScreen('plansScreen'); setNavActive('navPlans'); });
 document.getElementById('navWithdraws').addEventListener('click', () => { showScreen('withdrawsScreen'); setNavActive('navWithdraws'); });
