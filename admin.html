@@ -39,16 +39,14 @@ body{font-family:Arial;background:#f0f2f5;user-select:none}
 </head>
 <body>
 
-<!-- LOGIN -->
 <div class="screen active" id="loginScreen">
 <div class="header"><h2>⚙️ Admin Control Panel</h2></div>
 <div class="login-box">
-<input type="password" placeholder="Admin Key" id="adminPass">
+<input type="password" placeholder="Admin Key / Password" id="adminPass">
 <button class="btn" id="loginBtn">🔐 UNLOCK PANEL</button>
 </div>
 </div>
 
-<!-- DASHBOARD -->
 <div class="screen" id="dashboardScreen">
 <div class="header"><h2>📊 System Realtime Dashboard</h2></div>
 <div class="stats-grid">
@@ -58,25 +56,21 @@ body{font-family:Arial;background:#f0f2f5;user-select:none}
 </div>
 </div>
 
-<!-- PLAN REQUESTS -->
 <div class="screen" id="plansScreen">
 <div class="header"><h2>📋 Realtime Plan Requests</h2></div>
 <div class="card" id="planRequestsList">Loading Data...</div>
 </div>
 
-<!-- WITHDRAW REQUESTS -->
 <div class="screen" id="withdrawsScreen">
 <div class="header"><h2>💸 Realtime Withdraw Requests</h2></div>
 <div class="card" id="withdrawRequestsList">Loading Data...</div>
 </div>
 
-<!-- USERS MANAGEMENT -->
 <div class="screen" id="usersScreen">
 <div class="header"><h2>👥 Registered Users Database</h2></div>
 <div class="card" id="usersList">Loading Users...</div>
 </div>
 
-<!-- BOTTOM NAV -->
 <div class="bottom-nav" id="adminNav" style="display:none">
 <div class="nav-item active" id="navDash"><span>📊</span><br><small>Dashboard</small></div>
 <div class="nav-item" id="navPlans"><span>📋</span><br><small>Plans</small></div>
@@ -89,12 +83,8 @@ body{font-family:Arial;background:#f0f2f5;user-select:none}
 <script type="module">
 import { db, ref, set, get, update, onValue } from "./firebase-config.js";
 
-const ADMIN_HASH = "e2c26224d407fbb73d3ca7a9b0c96c4d444edbbec5a93aa4cbdf0e3952504b2c";
-
-async function sha256(str) {
-    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
+// 🔑 PASSWORD 
+const ADMIN_PASSWORD = "admin123";
 
 function showToast(m) {
     let t = document.getElementById('toast');
@@ -107,15 +97,20 @@ function showScreen(id) {
     document.getElementById(id).classList.add('active');
 }
 
-document.getElementById('loginBtn').addEventListener('click', async () => {
-    let pass = document.getElementById('adminPass').value;
-    let inputHash = await sha256(pass);
-    if(inputHash === ADMIN_HASH) {
+function setNavActive(id) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+}
+
+document.getElementById('loginBtn').addEventListener('click', () => {
+    let pass = document.getElementById('adminPass').value.trim();
+    if(pass === ADMIN_PASSWORD) {
         showScreen('dashboardScreen');
         document.getElementById('adminNav').style.display = 'flex';
         initAdminRealtime();
+        showToast('✅ Admin Access Granted!');
     } else {
-        showToast('❌ Access Denied!');
+        showToast('❌ Access Denied! Galat Password.');
     }
 });
 
@@ -129,7 +124,7 @@ function initAdminRealtime() {
                 let u = docSnap.val();
                 html += `<div class="user-row">
                     <div>
-                        <strong>${u.name}</strong> (${u.mobile})
+                        <strong>${u.name || 'User'}</strong> (${u.mobile})
                         <p style="font-size:11px;color:#666">Balance: Rs ${u.balance || 0} | RefBy: ${u.refBy || 'None'}</p>
                     </div>
                     <div>
@@ -141,7 +136,7 @@ function initAdminRealtime() {
             });
         }
         document.getElementById('totalUsers').textContent = count;
-        document.getElementById('usersList').innerHTML = html || 'No Users';
+        document.getElementById('usersList').innerHTML = html || 'No Users Found';
     });
 
     onValue(ref(db, "planRequests"), (snap) => {
@@ -152,7 +147,7 @@ function initAdminRealtime() {
                 let p = docSnap.val();
                 if(p.status === 'pending') pendingCount++;
                 html += `<div class="request-item ${p.status}">
-                    <strong>${p.userName} (${p.userMobile})</strong>
+                    <strong>${p.userName || 'User'} (${p.userMobile})</strong>
                     <p>TID: ${p.tid} | Amount: Rs ${p.amount}</p>
                     ${p.status === 'pending' ? `
                         <button class="btn btn-green btn-small" onclick="approvePlan('${p.id}', '${p.userId}')">Approve</button>
@@ -173,7 +168,7 @@ function initAdminRealtime() {
                 let w = docSnap.val();
                 if(w.status === 'pending') pendingCount++;
                 html += `<div class="request-item ${w.status}">
-                    <strong>${w.userName} (${w.withdrawAccount})</strong>
+                    <strong>${w.userName || 'User'} (${w.withdrawAccount})</strong>
                     <p>Method: ${w.method} | Amount: Rs ${w.amount}</p>
                     ${w.status === 'pending' ? `
                         <button class="btn btn-green btn-small" onclick="approveWithdraw('${w.id}', '${w.userId}', ${w.amount})">Pay</button>
@@ -241,10 +236,10 @@ window.toggleBan = async (userId, currentStatus) => {
     showToast('✅ User Status Updated!');
 };
 
-document.getElementById('navDash').addEventListener('click', () => showScreen('dashboardScreen'));
-document.getElementById('navPlans').addEventListener('click', () => showScreen('plansScreen'));
-document.getElementById('navWithdraws').addEventListener('click', () => showScreen('withdrawsScreen'));
-document.getElementById('navUsers').addEventListener('click', () => showScreen('usersScreen'));
+document.getElementById('navDash').addEventListener('click', () => { showScreen('dashboardScreen'); setNavActive('navDash'); });
+document.getElementById('navPlans').addEventListener('click', () => { showScreen('plansScreen'); setNavActive('navPlans'); });
+document.getElementById('navWithdraws').addEventListener('click', () => { showScreen('withdrawsScreen'); setNavActive('navWithdraws'); });
+document.getElementById('navUsers').addEventListener('click', () => { showScreen('usersScreen'); setNavActive('navUsers'); });
 </script>
 </body>
 </html>
