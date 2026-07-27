@@ -272,7 +272,24 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { db, collection, doc, setDoc, getDoc, getDocs, updateDoc, query, where, onSnapshot } from "./firebase-config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+// Firebase Configuration Keys Connected
+const firebaseConfig = {
+  apiKey: "AIzaSyB25VaErJEsI3VLBeb52cpczKRmEWC4fEs",
+  authDomain: "pak-earning-site.firebaseapp.com",
+  databaseURL: "https://pak-earning-site-default-rtdb.firebaseio.com",
+  projectId: "pak-earning-site",
+  storageBucket: "pak-earning-site.firebasestorage.app",
+  messagingSenderId: "830671389706",
+  appId: "1:830671389706:web:d27d9596334751fa70cbf3",
+  measurementId: "G-VNZESL5C5Q"
+};
+
+// Initialize Firebase Realtime Database
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
 let currentUser = JSON.parse(localStorage.getItem('pe_currentUser')) || null;
 let selectedWithdrawMethod = 'Easypaisa';
@@ -318,9 +335,10 @@ function setNavActive(index) {
 
 // Strict Isolation: User syncs ONLY their personal document
 function listenUserData(userId) {
-    onSnapshot(doc(db, "users", userId), (docSnap) => {
-        if (docSnap.exists()) {
-            currentUser = docSnap.data();
+    const userRef = ref(db, 'users/' + userId);
+    onValue(userRef, (snapshot) => {
+        if (snapshot.exists()) {
+            currentUser = snapshot.val();
             if(currentUser.banned) {
                 localStorage.removeItem('pe_currentUser');
                 alert("Aapka account suspend kar diya gaya hai.");
@@ -335,25 +353,27 @@ function listenUserData(userId) {
 
 // Strict Isolation: Syncs ONLY requests owned by currentUser.id
 function listenWithdrawHistory(userId) {
-    const q = query(collection(db, "withdrawRequests"), where("userId", "==", userId));
-    onSnapshot(q, (snapshot) => {
+    const withdrawRef = query(ref(db, 'withdrawRequests'), orderByChild('userId'), equalTo(userId));
+    onValue(withdrawRef, (snapshot) => {
         let historyHTML = '';
         let pending = false;
-        snapshot.forEach((docSnap) => {
-            let w = docSnap.data();
-            if(w.status === 'pending') {
-                pending = true;
-                document.getElementById('pendingWithdrawAmount').textContent = w.amount;
-            }
-            let statusColor = w.status === 'approved' ? '#2e7d32' : (w.status === 'rejected' ? '#c62828' : '#e65100');
-            historyHTML += `<div style="padding:10px;border-bottom:1px solid #eee">
-                <div style="display:flex;justify-content:space-between">
-                <span>Rs ${w.amount}</span>
-                <span style="color:${statusColor};font-weight:bold">${w.status.toUpperCase()}</span>
-                </div>
-                <p style="font-size:12px;color:#666">${w.method} | ${w.date}</p>
-                </div>`;
-        });
+        if(snapshot.exists()){
+            snapshot.forEach((childSnap) => {
+                let w = childSnap.val();
+                if(w.status === 'pending') {
+                    pending = true;
+                    document.getElementById('pendingWithdrawAmount').textContent = w.amount;
+                }
+                let statusColor = w.status === 'approved' ? '#2e7d32' : (w.status === 'rejected' ? '#c62828' : '#e65100');
+                historyHTML += `<div style="padding:10px;border-bottom:1px solid #eee">
+                    <div style="display:flex;justify-content:space-between">
+                    <span>Rs ${w.amount}</span>
+                    <span style="color:${statusColor};font-weight:bold">${w.status.toUpperCase()}</span>
+                    </div>
+                    <p style="font-size:12px;color:#666">${w.method} | ${w.date}</p>
+                    </div>`;
+            });
+        }
 
         document.getElementById('withdrawHistory').innerHTML = historyHTML || '<p style="text-align:center;color:#999;padding:20px">Koi withdrawal nahi</p>';
         document.getElementById('withdrawForm').style.display = pending ? 'none' : 'block';
@@ -371,9 +391,9 @@ async function signup() {
     if(!name || !mobile || !pass) return showToast('❌ Basic fields zaroori hain!');
     if(pass !== confirm) return showToast('❌ Password match nahi hua!');
 
-    const userQuery = query(collection(db, "users"), where("mobile", "==", mobile));
-    const querySnapshot = await getDocs(userQuery);
-    if(!querySnapshot.empty) return showToast('❌ Yeh Mobile Pehle Se Registered Hai!');
+    const userQuery = query(ref(db, "users"), orderByChild("mobile"), equalTo(mobile));
+    const snapshot = await get(userQuery);
+    if(snapshot.exists()) return showToast('❌ Yeh Mobile Pehle Se Registered Hai!');
 
     let userId = 'USER' + Math.random().toString(36).substr(2, 6).toUpperCase();
     let newUser = {
@@ -393,7 +413,7 @@ async function signup() {
         banned: false
     };
 
-    await setDoc(doc(db, "users", userId), newUser);
+    await set(ref(db, 'users/' + userId), newUser);
     currentUser = newUser;
     localStorage.setItem('pe_currentUser', JSON.stringify(currentUser));
     initApp();
@@ -406,15 +426,21 @@ async function login() {
 
     if(!mobile || !pass) return showToast('❌ Details complete enter karein!');
 
-    const q = query(collection(db, "users"), where("mobile", "==", mobile), where("password", "==", pass));
-    const snap = await getDocs(q);
+    const q = query(ref(db, "users"), orderByChild("mobile"), equalTo(mobile));
+    const snap = await get(q);
 
-    if(snap.empty) return showToast('❌ Galat credentials!');
+    if(!snap.exists()) return showToast('❌ Galat credentials!');
 
-    snap.forEach((docSnap) => {
-        currentUser = docSnap.data();
+    let userFound = false;
+    snap.forEach((childSnap) => {
+        let userData = childSnap.val();
+        if(userData.password === pass) {
+            currentUser = userData;
+            userFound = true;
+        }
     });
 
+    if(!userFound) return showToast('❌ Galat credentials!');
     if(currentUser.banned) return showToast('🚫 Account Banned Hai!');
 
     localStorage.setItem('pe_currentUser', JSON.stringify(currentUser));
@@ -427,7 +453,7 @@ async function submitPlanRequest() {
     if(!tid) return showToast('❌ Transaction ID (TID) enter karein!');
 
     let reqId = 'REQ' + Date.now();
-    await setDoc(doc(db, "planRequests", reqId), {
+    await set(ref(db, 'planRequests/' + reqId), {
         id: reqId,
         userId: currentUser.id,
         userName: currentUser.name,
@@ -438,7 +464,7 @@ async function submitPlanRequest() {
         date: new Date().toLocaleString()
     });
 
-    await updateDoc(doc(db, "users", currentUser.id), { planPending: true });
+    await update(ref(db, 'users/' + currentUser.id), { planPending: true });
     showToast('✅ Request Send Ho Gayi!');
 }
 
@@ -453,7 +479,7 @@ async function submitWithdraw() {
     if(amt > currentUser.balance) return showToast('❌ Balance Kam Hai!');
 
     let wId = 'WID' + Date.now();
-    await setDoc(doc(db, "withdrawRequests", wId), {
+    await set(ref(db, 'withdrawRequests/' + wId), {
         id: wId,
         userId: currentUser.id,
         userName: currentUser.name,
@@ -483,9 +509,17 @@ function updateUI() {
     document.getElementById('joinDate').textContent = currentUser.joinDate;
 
     let invites = currentUser.invites || [];
-    document.getElementById('totalInvites').textContent = invites.length;
-    document.getElementById('completedInvites').textContent = invites.filter(i => i.paid).length;
-    document.getElementById('pendingInvites').textContent = invites.filter(i => !i.paid).length;
+    document.getElementById('totalInvites').textContent = Object.keys(invites).length;
+    
+    let completed = 0;
+    let pending = 0;
+    Object.values(invites).forEach(i => {
+        if(i.paid) completed++;
+        else pending++;
+    });
+
+    document.getElementById('completedInvites').textContent = completed;
+    document.getElementById('pendingInvites').textContent = pending;
 
     if(currentUser.planActive) {
         document.getElementById('activatePlanCard').style.display = 'none';
