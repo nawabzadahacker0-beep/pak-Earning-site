@@ -1,28 +1,24 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
-    getFirestore, 
-    collection, 
-    doc, 
-    setDoc, 
-    getDoc, 
-    getDocs, 
-    updateDoc, 
-    query, 
-    where, 
-    onSnapshot 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    getDatabase, 
+    ref, 
+    set, 
+    get, 
+    update, 
+    onValue 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAOK0ZQxaPikV_AZsNWVLe9Ax_PxmkL9Uk",
-  authDomain: "pak-earn-dd5d0.firebaseapp.com",
-  databaseURL: "https://pak-earn-dd5d0-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "pak-earn-dd5d0",
-  storageBucket: "pak-earn-dd5d0.firebasestorage.app",
-  messagingSenderId: "28853126153",
-  appId: "1:28853126153:web:265db3cd9905a59552e4d8"
+  apiKey: "AIzaSyB25VaErJEsI3VLBeb52cpczKRmEWC4fEs",
+  authDomain: "pak-earning-site.firebaseapp.com",
+  databaseURL: "https://pak-earning-site-default-rtdb.firebaseio.com",
+  projectId: "pak-earning-site",
+  storageBucket: "pak-earning-site.firebasestorage.app",
+  messagingSenderId: "830671389706",
+  appId: "1:830671389706:web:d27d9596334751fa70cbf3"
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+export const db = getDatabase(app);
 
-export { collection, doc, setDoc, getDoc, getDocs, updateDoc, query, where, onSnapshot };
+export { ref, set, get, update, onValue };
