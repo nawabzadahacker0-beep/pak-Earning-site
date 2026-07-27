@@ -39,7 +39,6 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
 <div class="screen active" id="loginScreen">
 <div class="header">
 <div style="font-size:24px">🇵🇰</div>
@@ -55,7 +54,6 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 </div>
 </div>
 
-<!-- SIGNUP SCREEN -->
 <div class="screen" id="signupScreen">
 <div class="header">
 <div style="font-size:24px">🇵🇰</div>
@@ -74,7 +72,6 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 </div>
 </div>
 
-<!-- DASHBOARD -->
 <div class="screen" id="dashboard">
 <div class="header" id="mainHeader">
 <div style="font-size:24px">🇵🇰</div>
@@ -134,7 +131,6 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 </div>
 </div>
 
-<!-- INVITE -->
 <div class="screen" id="invite">
 <div class="header">
 <h2>📤 Invite & Earn</h2>
@@ -162,7 +158,6 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 </div>
 </div>
 
-<!-- BANK -->
 <div class="screen" id="bank">
 <div class="header">
 <h2>🏦 Withdraw</h2>
@@ -211,7 +206,6 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 </div>
 </div>
 
-<!-- PROFILE -->
 <div class="screen" id="profile">
 <div class="header">
 <h2>👤 Profile</h2>
@@ -249,7 +243,6 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 </div>
 </div>
 
-<!-- BOTTOM NAV -->
 <div class="bottom-nav" id="bottomNav" style="display:none">
 <div class="nav-item active" id="navDash">
 <span>🏠</span>
@@ -272,21 +265,7 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyB25VaErJEsI3VLBeb52cpczKRmEWC4fEs",
-  authDomain: "pak-earning-site.firebaseapp.com",
-  databaseURL: "https://pak-earning-site-default-rtdb.firebaseio.com",
-  projectId: "pak-earning-site",
-  storageBucket: "pak-earning-site.firebasestorage.app",
-  messagingSenderId: "830671389706",
-  appId: "1:830671389706:web:d27d9596334751fa70cbf3"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+import { db, ref, set, get, update, onValue } from "./firebase-config.js";
 
 let currentUser = JSON.parse(localStorage.getItem('pe_currentUser')) || null;
 let selectedWithdrawMethod = 'Easypaisa';
