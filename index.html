@@ -273,9 +273,8 @@ input{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:8
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// Firebase Configuration Keys Connected
 const firebaseConfig = {
   apiKey: "AIzaSyB25VaErJEsI3VLBeb52cpczKRmEWC4fEs",
   authDomain: "pak-earning-site.firebaseapp.com",
@@ -287,20 +286,11 @@ const firebaseConfig = {
   measurementId: "G-VNZESL5C5Q"
 };
 
-// Initialize Firebase Realtime Database
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 let currentUser = JSON.parse(localStorage.getItem('pe_currentUser')) || null;
 let selectedWithdrawMethod = 'Easypaisa';
-
-// Code Protection Engine
-document.addEventListener("contextmenu", e => e.preventDefault());
-document.addEventListener("keydown", e => {
-    if (e.keyCode === 123 || (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || (e.ctrlKey && e.keyCode === 85)) {
-        e.preventDefault();
-    }
-});
 
 function showToast(m) {
     let t = document.getElementById('toast');
@@ -333,9 +323,8 @@ function setNavActive(index) {
     if(items[index]) items[index].classList.add('active');
 }
 
-// Strict Isolation: User syncs ONLY their personal document
-function listenUserData(userId) {
-    const userRef = ref(db, 'users/' + userId);
+function listenUserData(mobile) {
+    const userRef = ref(db, 'users/' + mobile);
     onValue(userRef, (snapshot) => {
         if (snapshot.exists()) {
             currentUser = snapshot.val();
@@ -351,27 +340,28 @@ function listenUserData(userId) {
     });
 }
 
-// Strict Isolation: Syncs ONLY requests owned by currentUser.id
-function listenWithdrawHistory(userId) {
-    const withdrawRef = query(ref(db, 'withdrawRequests'), orderByChild('userId'), equalTo(userId));
+function listenWithdrawHistory(mobile) {
+    const withdrawRef = ref(db, 'withdrawRequests');
     onValue(withdrawRef, (snapshot) => {
         let historyHTML = '';
         let pending = false;
         if(snapshot.exists()){
             snapshot.forEach((childSnap) => {
                 let w = childSnap.val();
-                if(w.status === 'pending') {
-                    pending = true;
-                    document.getElementById('pendingWithdrawAmount').textContent = w.amount;
+                if(w.userId === mobile) {
+                    if(w.status === 'pending') {
+                        pending = true;
+                        document.getElementById('pendingWithdrawAmount').textContent = w.amount;
+                    }
+                    let statusColor = w.status === 'approved' ? '#2e7d32' : (w.status === 'rejected' ? '#c62828' : '#e65100');
+                    historyHTML += `<div style="padding:10px;border-bottom:1px solid #eee">
+                        <div style="display:flex;justify-content:space-between">
+                        <span>Rs ${w.amount}</span>
+                        <span style="color:${statusColor};font-weight:bold">${w.status.toUpperCase()}</span>
+                        </div>
+                        <p style="font-size:12px;color:#666">${w.method} | ${w.date}</p>
+                        </div>`;
                 }
-                let statusColor = w.status === 'approved' ? '#2e7d32' : (w.status === 'rejected' ? '#c62828' : '#e65100');
-                historyHTML += `<div style="padding:10px;border-bottom:1px solid #eee">
-                    <div style="display:flex;justify-content:space-between">
-                    <span>Rs ${w.amount}</span>
-                    <span style="color:${statusColor};font-weight:bold">${w.status.toUpperCase()}</span>
-                    </div>
-                    <p style="font-size:12px;color:#666">${w.method} | ${w.date}</p>
-                    </div>`;
             });
         }
 
@@ -391,33 +381,38 @@ async function signup() {
     if(!name || !mobile || !pass) return showToast('❌ Basic fields zaroori hain!');
     if(pass !== confirm) return showToast('❌ Password match nahi hua!');
 
-    const userQuery = query(ref(db, "users"), orderByChild("mobile"), equalTo(mobile));
-    const snapshot = await get(userQuery);
-    if(snapshot.exists()) return showToast('❌ Yeh Mobile Pehle Se Registered Hai!');
+    try {
+        const userRef = ref(db, 'users/' + mobile);
+        const snapshot = await get(userRef);
+        
+        if(snapshot.exists()) return showToast('❌ Yeh Mobile Pehle Se Registered Hai!');
 
-    let userId = 'USER' + Math.random().toString(36).substr(2, 6).toUpperCase();
-    let newUser = {
-        id: userId,
-        name: name,
-        mobile: mobile,
-        email: email || '',
-        password: pass,
-        balance: 0,
-        planActive: false,
-        planPending: false,
-        totalEarned: 0,
-        totalWithdrawn: 0,
-        invites: [],
-        joinDate: new Date().toLocaleDateString(),
-        refBy: new URLSearchParams(window.location.search).get('ref') || '',
-        banned: false
-    };
+        let newUser = {
+            id: mobile,
+            name: name,
+            mobile: mobile,
+            email: email || '',
+            password: pass,
+            balance: 0,
+            planActive: false,
+            planPending: false,
+            totalEarned: 0,
+            totalWithdrawn: 0,
+            invites: {},
+            joinDate: new Date().toLocaleDateString(),
+            refBy: new URLSearchParams(window.location.search).get('ref') || '',
+            banned: false
+        };
 
-    await set(ref(db, 'users/' + userId), newUser);
-    currentUser = newUser;
-    localStorage.setItem('pe_currentUser', JSON.stringify(currentUser));
-    initApp();
-    showToast('✅ Account Ban Gaya!');
+        await set(userRef, newUser);
+        currentUser = newUser;
+        localStorage.setItem('pe_currentUser', JSON.stringify(currentUser));
+        initApp();
+        showToast('✅ Account Ban Gaya!');
+    } catch(err) {
+        console.error(err);
+        showToast('❌ Database Error! Net check karo.');
+    }
 }
 
 async function login() {
@@ -426,26 +421,24 @@ async function login() {
 
     if(!mobile || !pass) return showToast('❌ Details complete enter karein!');
 
-    const q = query(ref(db, "users"), orderByChild("mobile"), equalTo(mobile));
-    const snap = await get(q);
+    try {
+        const userRef = ref(db, 'users/' + mobile);
+        const snap = await get(userRef);
 
-    if(!snap.exists()) return showToast('❌ Galat credentials!');
+        if(!snap.exists()) return showToast('❌ Account Nahi Mila! Signup Karo.');
 
-    let userFound = false;
-    snap.forEach((childSnap) => {
-        let userData = childSnap.val();
-        if(userData.password === pass) {
-            currentUser = userData;
-            userFound = true;
-        }
-    });
+        let userData = snap.val();
+        if(userData.password !== pass) return showToast('❌ Galat Password!');
+        if(userData.banned) return showToast('🚫 Account Banned Hai!');
 
-    if(!userFound) return showToast('❌ Galat credentials!');
-    if(currentUser.banned) return showToast('🚫 Account Banned Hai!');
-
-    localStorage.setItem('pe_currentUser', JSON.stringify(currentUser));
-    initApp();
-    showToast('✅ Welcome ' + currentUser.name);
+        currentUser = userData;
+        localStorage.setItem('pe_currentUser', JSON.stringify(currentUser));
+        initApp();
+        showToast('✅ Welcome ' + currentUser.name);
+    } catch(err) {
+        console.error(err);
+        showToast('❌ Connection Error!');
+    }
 }
 
 async function submitPlanRequest() {
@@ -455,7 +448,7 @@ async function submitPlanRequest() {
     let reqId = 'REQ' + Date.now();
     await set(ref(db, 'planRequests/' + reqId), {
         id: reqId,
-        userId: currentUser.id,
+        userId: currentUser.mobile,
         userName: currentUser.name,
         userMobile: currentUser.mobile,
         tid: tid,
@@ -464,7 +457,7 @@ async function submitPlanRequest() {
         date: new Date().toLocaleString()
     });
 
-    await update(ref(db, 'users/' + currentUser.id), { planPending: true });
+    await update(ref(db, 'users/' + currentUser.mobile), { planPending: true });
     showToast('✅ Request Send Ho Gayi!');
 }
 
@@ -481,7 +474,7 @@ async function submitWithdraw() {
     let wId = 'WID' + Date.now();
     await set(ref(db, 'withdrawRequests/' + wId), {
         id: wId,
-        userId: currentUser.id,
+        userId: currentUser.mobile,
         userName: currentUser.name,
         userMobile: currentUser.mobile,
         withdrawName: name,
@@ -508,13 +501,14 @@ function updateUI() {
     document.getElementById('profileMobile2').textContent = currentUser.mobile;
     document.getElementById('joinDate').textContent = currentUser.joinDate;
 
-    let invites = currentUser.invites || [];
-    document.getElementById('totalInvites').textContent = Object.keys(invites).length;
+    let invites = currentUser.invites || {};
+    let inviteKeys = Object.keys(invites);
+    document.getElementById('totalInvites').textContent = inviteKeys.length;
     
     let completed = 0;
     let pending = 0;
-    Object.values(invites).forEach(i => {
-        if(i.paid) completed++;
+    inviteKeys.forEach(k => {
+        if(invites[k].paid) completed++;
         else pending++;
     });
 
@@ -532,7 +526,7 @@ function updateUI() {
         document.getElementById('profilePlanStatus').textContent = 'Active Plan';
         document.getElementById('profilePlanStatus').style.color = '#2e7d32';
         
-        let refLink = window.location.origin + window.location.pathname.replace('index.html', '') + '?ref=' + currentUser.id;
+        let refLink = window.location.origin + window.location.pathname + '?ref=' + currentUser.mobile;
         document.getElementById('userRefLink').textContent = refLink;
         document.getElementById('refLink').textContent = refLink;
     } else if(currentUser.planPending) {
@@ -552,8 +546,8 @@ function initApp() {
     if(currentUser) {
         showScreen('dashboard');
         document.getElementById('bottomNav').style.display = 'flex';
-        listenUserData(currentUser.id);
-        listenWithdrawHistory(currentUser.id);
+        listenUserData(currentUser.mobile);
+        listenWithdrawHistory(currentUser.mobile);
     } else {
         showScreen('loginScreen');
     }
